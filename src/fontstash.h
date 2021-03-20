@@ -169,7 +169,7 @@ typedef struct FONSttFontImpl FONSttFontImpl;
 
 static FT_Library ftLibrary;
 
-static int fons__tt_init()
+static int fons__tt_init(FONScontext* context)
 {
 	FT_Error ftError;
 	FONS_NOTUSED(context);
@@ -204,6 +204,8 @@ static int fons__tt_getGlyphIndex(FONSttFontImpl *font, int codepoint)
 	return FT_Get_Char_Index(font->font, codepoint);
 }
 
+constexpr bool g_useBitmapRendering = false;
+
 static int fons__tt_buildGlyphBitmap(FONSttFontImpl *font, int glyph, float size, float scale,
 							  int *advance, int *lsb, int *x0, int *y0, int *x1, int *y1)
 {
@@ -214,7 +216,14 @@ static int fons__tt_buildGlyphBitmap(FONSttFontImpl *font, int glyph, float size
 
 	ftError = FT_Set_Pixel_Sizes(font->font, 0, (FT_UInt)(size * (float)font->font->units_per_EM / (float)(font->font->ascender - font->font->descender)));
 	if (ftError) return 0;
-	ftError = FT_Load_Glyph(font->font, glyph, FT_LOAD_RENDER);
+	if constexpr (g_useBitmapRendering)
+	{
+		ftError = FT_Load_Glyph(font->font, glyph, FT_LOAD_RENDER | FT_LOAD_TARGET_MONO);
+	}
+	else
+	{
+		ftError = FT_Load_Glyph(font->font, glyph, FT_LOAD_RENDER);
+	}
 	if (ftError) return 0;
 	ftError = FT_Get_Advance(font->font, glyph, FT_LOAD_NO_SCALE, &advFixed);
 	if (ftError) return 0;
@@ -231,18 +240,63 @@ static int fons__tt_buildGlyphBitmap(FONSttFontImpl *font, int glyph, float size
 static void fons__tt_renderGlyphBitmap(FONSttFontImpl *font, unsigned char *output, int outWidth, int outHeight, int outStride,
 								float scaleX, float scaleY, int glyph)
 {
-	FT_GlyphSlot ftGlyph = font->font->glyph;
-	int ftGlyphOffset = 0;
-	int x, y;
-	FONS_NOTUSED(outWidth);
-	FONS_NOTUSED(outHeight);
-	FONS_NOTUSED(scaleX);
-	FONS_NOTUSED(scaleY);
-	FONS_NOTUSED(glyph);	// glyph has already been loaded by fons__tt_buildGlyphBitmap
+	if constexpr (g_useBitmapRendering)
+	{
+		FT_GlyphSlot ftGlyph = font->font->glyph;
+		int ftGlyphOffset = 0;
+		int x, y;
+		FONS_NOTUSED(outWidth);
+		FONS_NOTUSED(outHeight);
+		FONS_NOTUSED(scaleX);
+		FONS_NOTUSED(scaleY);
+		FONS_NOTUSED(glyph);	// glyph has already been loaded by fons__tt_buildGlyphBitmap
 
-	for ( y = 0; y < ftGlyph->bitmap.rows; y++ ) {
-		for ( x = 0; x < ftGlyph->bitmap.width; x++ ) {
-			output[(y * outStride) + x] = ftGlyph->bitmap.buffer[ftGlyphOffset++];
+
+		int byte_index, byte_value, num_bits_done, rowstart, bits, bit_index;
+		for (y = 0; y < ftGlyph->bitmap.rows; y++)
+		{
+			for (byte_index = 0; byte_index < ftGlyph->bitmap.pitch; byte_index++)
+			{
+
+				byte_value = ftGlyph->bitmap.buffer[y * ftGlyph->bitmap.pitch + byte_index];
+
+				num_bits_done = byte_index * 8;
+
+				rowstart = (y * outStride) + byte_index * 8;
+
+				bits = 8;
+				if ((ftGlyph->bitmap.width - num_bits_done) < 8)
+				{
+					bits = ftGlyph->bitmap.width - num_bits_done;
+				}
+
+				for (bit_index = 0; bit_index < bits; bit_index++)
+				{
+					int bit;
+					bit = byte_value & (1 << (7 - bit_index));
+
+					output[rowstart + bit_index] = (bit ? 255 : 0);
+				}
+			}
+		}
+	}
+	else
+	{
+		FT_GlyphSlot ftGlyph = font->font->glyph;
+		int ftGlyphOffset = 0;
+		int x, y;
+		FONS_NOTUSED(outWidth);
+		FONS_NOTUSED(outHeight);
+		FONS_NOTUSED(scaleX);
+		FONS_NOTUSED(scaleY);
+		FONS_NOTUSED(glyph);	// glyph has already been loaded by fons__tt_buildGlyphBitmap
+
+		for (y = 0; y < ftGlyph->bitmap.rows; y++)
+		{
+			for (x = 0; x < ftGlyph->bitmap.width; x++)
+			{
+				output[(y * outStride) + x] = ftGlyph->bitmap.buffer[ftGlyphOffset++];
+			}
 		}
 	}
 }
