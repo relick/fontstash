@@ -177,6 +177,14 @@ static int fons__tt_init(FONScontext* context)
 	return ftError == 0;
 }
 
+static int fons__tt_done(FONScontext* context)
+{
+	FT_Error ftError;
+	FONS_NOTUSED(context);
+	ftError = FT_Done_FreeType(ftLibrary);
+	return ftError == 0;
+}
+
 static int fons__tt_loadFont(FONScontext *context, FONSttFontImpl *font, unsigned char *data, int dataSize)
 {
 	FT_Error ftError;
@@ -243,8 +251,7 @@ static void fons__tt_renderGlyphBitmap(FONSttFontImpl *font, unsigned char *outp
 	if constexpr (g_useBitmapRendering)
 	{
 		FT_GlyphSlot ftGlyph = font->font->glyph;
-		int ftGlyphOffset = 0;
-		int x, y;
+		int y;
 		FONS_NOTUSED(outWidth);
 		FONS_NOTUSED(outHeight);
 		FONS_NOTUSED(scaleX);
@@ -257,7 +264,6 @@ static void fons__tt_renderGlyphBitmap(FONSttFontImpl *font, unsigned char *outp
 		{
 			for (byte_index = 0; byte_index < ftGlyph->bitmap.pitch; byte_index++)
 			{
-
 				byte_value = ftGlyph->bitmap.buffer[y * ftGlyph->bitmap.pitch + byte_index];
 
 				num_bits_done = byte_index * 8;
@@ -324,6 +330,12 @@ struct FONSttFontImpl {
 typedef struct FONSttFontImpl FONSttFontImpl;
 
 static int fons__tt_init(FONScontext *context)
+{
+	FONS_NOTUSED(context);
+	return 1;
+}
+
+static int fons__tt_done(FONScontext* context)
 {
 	FONS_NOTUSED(context);
 	return 1;
@@ -497,6 +509,7 @@ struct FONScontext
 	int nstates;
 	void (*handleError)(void* uptr, int error, int val);
 	void* errorUptr;
+	bool ttInit;
 };
 
 #ifdef STB_TRUETYPE_IMPLEMENTATION
@@ -787,6 +800,7 @@ FONScontext* fonsCreateInternal(FONSparams* params)
 
 	// Initialize implementation library
 	if (!fons__tt_init(stash)) goto error;
+	else { stash->ttInit = true; }
 
 	if (stash->params.renderCreate != NULL) {
 		if (stash->params.renderCreate(stash->params.userPtr, stash->params.width, stash->params.height) == 0)
@@ -1690,6 +1704,9 @@ FONS_DEF void fonsDeleteInternal(FONScontext* stash)
 {
 	int i;
 	if (stash == NULL) return;
+
+	if (stash->ttInit)
+		fons__tt_done(stash);
 
 	if (stash->params.renderDelete)
 		stash->params.renderDelete(stash->params.userPtr);
