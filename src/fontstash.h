@@ -251,7 +251,6 @@ static void fons__tt_renderGlyphBitmap(FONSttFontImpl *font, unsigned char *outp
 	if constexpr (g_useBitmapRendering)
 	{
 		FT_GlyphSlot ftGlyph = font->font->glyph;
-		int y;
 		FONS_NOTUSED(outWidth);
 		FONS_NOTUSED(outHeight);
 		FONS_NOTUSED(scaleX);
@@ -259,10 +258,10 @@ static void fons__tt_renderGlyphBitmap(FONSttFontImpl *font, unsigned char *outp
 		FONS_NOTUSED(glyph);	// glyph has already been loaded by fons__tt_buildGlyphBitmap
 
 
-		int byte_index, byte_value, num_bits_done, rowstart, bits, bit_index;
-		for (y = 0; y < ftGlyph->bitmap.rows; y++)
+		unsigned int byte_value, num_bits_done, rowstart, bits;
+		for (unsigned int y = 0; y < ftGlyph->bitmap.rows; y++)
 		{
-			for (byte_index = 0; byte_index < ftGlyph->bitmap.pitch; byte_index++)
+			for (unsigned int byte_index = 0; byte_index < ftGlyph->bitmap.pitch; byte_index++)
 			{
 				byte_value = ftGlyph->bitmap.buffer[y * ftGlyph->bitmap.pitch + byte_index];
 
@@ -276,9 +275,9 @@ static void fons__tt_renderGlyphBitmap(FONSttFontImpl *font, unsigned char *outp
 					bits = ftGlyph->bitmap.width - num_bits_done;
 				}
 
-				for (bit_index = 0; bit_index < bits; bit_index++)
+				for (unsigned int bit_index = 0; bit_index < bits; bit_index++)
 				{
-					int bit;
+					unsigned int bit;
 					bit = byte_value & (1 << (7 - bit_index));
 
 					output[rowstart + bit_index] = (bit ? 255 : 0);
@@ -289,17 +288,16 @@ static void fons__tt_renderGlyphBitmap(FONSttFontImpl *font, unsigned char *outp
 	else
 	{
 		FT_GlyphSlot ftGlyph = font->font->glyph;
-		int ftGlyphOffset = 0;
-		int x, y;
+		unsigned int ftGlyphOffset = 0;
 		FONS_NOTUSED(outWidth);
 		FONS_NOTUSED(outHeight);
 		FONS_NOTUSED(scaleX);
 		FONS_NOTUSED(scaleY);
 		FONS_NOTUSED(glyph);	// glyph has already been loaded by fons__tt_buildGlyphBitmap
 
-		for (y = 0; y < ftGlyph->bitmap.rows; y++)
+		for (unsigned int y = 0; y < ftGlyph->bitmap.rows; y++)
 		{
-			for (x = 0; x < ftGlyph->bitmap.width; x++)
+			for (unsigned int x = 0; x < ftGlyph->bitmap.width; x++)
 			{
 				output[(y * outStride) + x] = ftGlyph->bitmap.buffer[ftGlyphOffset++];
 			}
